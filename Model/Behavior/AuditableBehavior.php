@@ -209,11 +209,16 @@ class AuditableBehavior extends \ModelBehavior {
 			}
 
 			if ($created) {
+				$newValue = $value;
+				if (isset($this->settings[$Model->alias]['deepLog']) && $this->settings[$Model->alias]['deepLog']) {
+					$newValue = json_encode($newValue);
+				}
+
 				$delta = array(
 					'AuditDelta' => array(
 						'property_name' => $property,
 						'old_value' => '',
-						'new_value' => $value,
+						'new_value' => $newValue,
 					),
 				);
 			} else {
@@ -222,11 +227,19 @@ class AuditableBehavior extends \ModelBehavior {
 				) {
 					// If the property exists in the original _and_ the
 					// value is different, store it.
+
+					$oldValue = $this->_original[$Model->alias][$property];
+					$newValue = $value;
+					if (isset($this->settings[$Model->alias]['deepLog']) && $this->settings[$Model->alias]['deepLog']) {
+						$oldValue = json_encode($oldValue);
+						$newValue = json_encode($newValue);
+					}
+
 					$delta = array(
 						'AuditDelta' => array(
 							'property_name' => $property,
-							'old_value' => $this->_original[$Model->alias][$property],
-							'new_value' => $value,
+							'old_value' => $oldValue,
+							'new_value' => $newValue,
 						),
 					);
 				}
@@ -366,17 +379,52 @@ class AuditableBehavior extends \ModelBehavior {
 
 		foreach ($this->settings[$Model->alias]['habtm'] as $habtmModel) {
 			if (array_key_exists($habtmModel, $Model->hasAndBelongsToMany) && isset($data[$habtmModel])) {
-				$habtmIds = Hash::combine(
-					$data[$habtmModel],
-					'{n}.id',
-					'{n}.id'
-				);
+				if (isset($this->settings[$Model->alias]['deepLog']) && $this->settings[$Model->alias]['deepLog']) {
+					$habtmData = $data[$habtmModel];
+					if (is_array($this->settings[$Model->alias]['deepLog']) && !empty($this->settings[$Model->alias]['deepLog'])) {
+						// keep selected HABTM fields only
+						foreach ($habtmData as $key => &$value) {
+							foreach ($value as $property => &$val) {
+								if (!in_array($property, $this->settings[$Model->alias]['deepLog']))
+									unset($habtmData[$key][$property]);
+							}
+						}
+					} 
 
-				// Grab just the ID values and sort those.
-				$habtmIds = array_values($habtmIds);
-				sort($habtmIds);
+					if ($this->settings[$Model->alias]['ignoreDeep']) {
+						// Ignore specified properties from HABTM data
+						foreach ($habtmData as $key => &$value) {
+							foreach ($value as $property => &$val) {
+								if (is_array($val)) {
+									// Ignore specified properties from join table data
+									foreach ($val as $jTProperty => &$jTValue) {
+										if (in_array($jTProperty, $this->settings[$Model->alias]['ignore']))
+											unset($habtmData[$key][$property][$jTProperty]);
+									}
+								} else {
+									if (in_array($property, $this->settings[$Model->alias]['ignore']))
+									unset($habtmData[$key][$property]);
+								}
+							}
+						}
+					}
 
-				$auditData[$Model->alias][$habtmModel] = implode(',', $habtmIds);
+					// capture detailed HABTM data
+					$auditData[$Model->alias][$habtmModel] = $habtmData;
+				} else {
+					// capture only HABTM id(s)
+					$habtmIds = Hash::combine(
+						$data[$habtmModel],
+						'{n}.id',
+						'{n}.id'
+					);
+
+					// Grab just the ID values and sort those.
+					$habtmIds = array_values($habtmIds);
+					sort($habtmIds);
+
+					$auditData[$Model->alias][$habtmModel] = implode(',', $habtmIds);
+				} 
 			}
 		}
 

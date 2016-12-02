@@ -115,7 +115,9 @@ This will create the `audits` and `audit_deltas` tables that will store each obj
 Applying the `AuditableBehavior` to a model is essentially the same as applying any other CakePHP behavior. The behavior does offer a few configuration options:
 
 - ``ignore`` An array of property names to be ignored when records are created in the deltas table.
+- ``ignoreDeep`` Boolean `true`/`false` to ignore the above array of property names in **HABTM** and **join table** when records are created in deltas table. Defaults to false. If a property name exists in `ignore` as well as `deepLog`, it will still be ignored.
 - ``habtm`` An array of models that have a HABTM relationship with the acting model and whose changes should be monitored with the model. If the HABTM model is auditable in its own right, don't include it here. This option is for related models whose changes are _only_ tracked relative to the acting model.
+- ``deepLog`` Boolean or Array of property names. Defaults to false. `true` will log all properties of **HABTM** and **join table**. Array form can be used like ``array('habtmField1', 'habtmField2', 'habtmField3', 'joinTableClassName')``, this is especially useful when you want to log detailed HABTM association with `unique` key set to `true`/`keepExisting` (check [docs](http://book.cakephp.org/2.0/en/models/associations-linking-models-together.html#hasandbelongstomany-habtm))
 
 `````php
 /**
@@ -146,7 +148,9 @@ class AnotherModel extends AppModel {
 	public $actsAs = array(
 		'AuditLog.Auditable' => array(
 			'ignore' => array('active', 'name', 'updated'),
+            'ignoreDeep' => true,
 			'habtm' => array('Type', 'Project'),
+            'deepLog' => array('budget', 'due_date', 'AnotherModelProject')
 		)
 	);
 
